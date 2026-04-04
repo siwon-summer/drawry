@@ -255,7 +255,8 @@ body {
 }
 .toggle-wrap.on .toggle-knob { transform: translateX(13px); }
 .voice-label { font-size: 12px; font-weight: 500; color: var(--primary); }
-.input-row { display: flex; gap: 10px; align-items: center; }
+.input-row { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.chat-field { min-width: 0; }
 .mic-dark {
   width: 40px; height: 40px; background: #EBEBEB;
   border: none; border-radius: 50%; display: flex; align-items: center;
@@ -1071,13 +1072,18 @@ function goHome() {
 function goChat() {
   document.getElementById('chatScreenTitle').textContent = `${charName}과(와) 대화`;
   document.getElementById('chatContainer').innerHTML = '';
-  chatHistory = [];
   showScreen('screen3');
   if (window._firstMessage) {
     const pcm = [];
     const p = kananaCollect(window._firstMessage, pcm, 'char').catch(() => {});
     addCharBubble(window._firstMessage, pcm, p);
-    chatHistory.push({ role: 'assistant', content: window._firstMessage });
+    // API는 user → assistant 순서를 요구하므로 synthetic user message로 시작
+    chatHistory = [
+      { role: 'user', content: '안녕!' },
+      { role: 'assistant', content: window._firstMessage }
+    ];
+  } else {
+    chatHistory = [];
   }
 }
 
@@ -1232,12 +1238,12 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
 async function kananaCollect(text, pcmChunks, voiceType = 'story') {
   let ttsPrompt;
   if (voiceType === 'story') {
-    ttsPrompt = `따뜻하고 포근한 성인 여성의 목소리로, 아이에게 동화책을 읽어주듯이 감정을 담아 읽어줘. 슬픈 장면은 조용하고 부드럽게, 신나는 장면은 밝고 생동감 있게.\n${stripEmoji(text)}`;
+    ttsPrompt = `[Voice: calm, warm adult female narrator, slow paced, gentle storytelling tone like reading a children's book bedtime story]\n${stripEmoji(text)}`;
   } else {
     const isMale = window._charGender === 'male';
     ttsPrompt = isMale
-      ? `낮고 따뜻하고 친근한 남성 캐릭터 목소리로, 아이에게 말하듯 자연스럽게 말해줘.\n${stripEmoji(text)}`
-      : `밝고 귀엽고 따뜻한 여성 캐릭터 목소리로, 아이에게 말하듯 친근하게 말해줘.\n${stripEmoji(text)}`;
+      ? `[Voice: cheerful friendly male character, upbeat energetic tone, slightly higher pitch, like an animated cartoon character talking to a child]\n${stripEmoji(text)}`
+      : `[Voice: bright cheerful young female character, playful bubbly tone, like an animated cartoon character talking to a child]\n${stripEmoji(text)}`;
   }
   const res = await fetch(`${KANANA_BASE_URL}`, {
     method: 'POST',
@@ -1336,18 +1342,27 @@ function browserTTS(text, onEnd, gender) {
   u.onend = () => { window._activeUtterance = null; if (onEnd) onEnd(); };
 }
 
+const PAUSE_SVG = `<svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect x="0" y="0" width="4.5" height="16" rx="2.25" fill="#030E03"/><rect x="9.5" y="0" width="4.5" height="16" rx="2.25" fill="#030E03"/></svg>`;
+
+function setAudioBtn(btn, state) {
+  if (!btn) return;
+  if (state === 'playing') btn.innerHTML = `${PAUSE_SVG}<span style="margin-left:6px">일시정지하기</span>`;
+  else if (state === 'loading') btn.innerHTML = `<span>준비 중...</span>`;
+  else btn.innerHTML = `<span>음성으로 들어보기</span>`;
+}
+
 function playOrCollect(text, pcmChunks, btn) {
   if (isPlayingGlobal) {
-    stopAll(); if (btn) btn.textContent = '음성으로 들어보기'; return;
+    stopAll(); setAudioBtn(btn, 'idle'); return;
   }
-  const done = () => { if (btn) btn.textContent = '음성으로 들어보기'; };
-  if (btn) btn.textContent = '정지';
+  const done = () => setAudioBtn(btn, 'idle');
+  setAudioBtn(btn, 'playing');
   if (pcmChunks.length > 0) {
     playPCM(pcmChunks, done);
   } else {
-    if (btn) btn.textContent = '준비 중...';
+    setAudioBtn(btn, 'loading');
     kananaCollect(text, pcmChunks)
-      .then(() => { if (pcmChunks.length) { if (btn) btn.textContent = '정지'; playPCM(pcmChunks, done); } else done(); })
+      .then(() => { if (pcmChunks.length) { setAudioBtn(btn, 'playing'); playPCM(pcmChunks, done); } else done(); })
       .catch(() => done());
   }
 }
