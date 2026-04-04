@@ -1191,6 +1191,11 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
         ]}]
       })
     });
+    if (!res.ok) {
+      const txt = await res.text();
+      if (res.status === 429) throw new Error('Kanana API 사용량 한도 초과. 잠시 후 다시 시도해주세요.');
+      throw new Error(txt || `오류 ${res.status}`);
+    }
     const data = await res.json();
     if (!data.choices) throw new Error(JSON.stringify(data));
     const raw = data.choices[0].message.content;
@@ -1479,6 +1484,10 @@ async function sendChat() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'kanana-o', max_tokens: 200, messages: [{ role: 'system', content: sys }, ...chatHistory] })
     });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error('quota');
+      throw new Error(`${res.status}`);
+    }
     const data = await res.json();
     const reply = data.choices?.[0]?.message?.content?.trim() || '...';
     chatHistory.push({ role: 'assistant', content: reply });
@@ -1486,7 +1495,8 @@ async function sendChat() {
     const p = kananaCollect(reply, pcm, 'char').catch(() => {});
     addCharBubble(reply, pcm, p);
   } catch(e) {
-    addCharBubble('앗, 잠깐 말을 잃었어요!', []);
+    const msg = e.message === 'quota' ? 'API 사용량 한도가 초과됐어요. 잠시 후 다시 시도해줘요!' : '앗, 잠깐 말을 잃었어요!';
+    addCharBubble(msg, []);
   } finally {
     isSending = false;
   }
