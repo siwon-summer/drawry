@@ -269,7 +269,7 @@ body {
 }
 .chat-field input {
   background: none; border: none; outline: none;
-  font-size: 14px; font-family: inherit; color: #030E03; flex: 1;
+  font-size: 16px; font-family: inherit; color: #030E03; flex: 1;
   letter-spacing: -0.28px;
 }
 .chat-field input::placeholder { color: var(--text-muted); }
@@ -1296,6 +1296,7 @@ function playPCM(pcmChunks, onEnd) {
   stopAll();
   const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
   window._activeAudioCtx = ctx;
+  ctx.resume().catch(() => {});
   isPlayingGlobal = true;
   let t = ctx.currentTime; let last = null;
   for (const f32 of pcmChunks) {
@@ -1308,7 +1309,8 @@ function playPCM(pcmChunks, onEnd) {
   }
   if (last) last.onended = () => {
     isPlayingGlobal = false;
-    window._activeAudioCtx = null;
+    try { ctx.close(); } catch(e) {}
+    if (window._activeAudioCtx === ctx) window._activeAudioCtx = null;
     if (onEnd) onEnd();
   };
 }
@@ -1339,14 +1341,14 @@ function playOrCollect(text, pcmChunks, btn) {
     stopAll(); if (btn) btn.textContent = '음성으로 들어보기'; return;
   }
   const done = () => { if (btn) btn.textContent = '음성으로 들어보기'; };
-  if (btn) btn.textContent = '⏸ 정지';
+  if (btn) btn.textContent = '정지';
   if (pcmChunks.length > 0) {
     playPCM(pcmChunks, done);
   } else {
-    if (btn) btn.textContent = '⏳ 준비 중...';
+    if (btn) btn.textContent = '준비 중...';
     kananaCollect(text, pcmChunks)
-      .then(() => { if (btn) btn.textContent = '⏸ 정지'; if (pcmChunks.length) playPCM(pcmChunks, done); else browserTTS(text, done); })
-      .catch(() => browserTTS(text, done));
+      .then(() => { if (pcmChunks.length) { if (btn) btn.textContent = '정지'; playPCM(pcmChunks, done); } else done(); })
+      .catch(() => done());
   }
 }
 
