@@ -940,17 +940,19 @@ let lottieAnim = null;
 function showStoryLoading() {
   const overlay = document.getElementById('storyLoadingOverlay');
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-  if (!lottieAnim) {
-    lottieAnim = lottie.loadAnimation({
-      container: document.getElementById('lottie-container'),
-      renderer: 'svg',
-      loop: true,
-      autoplay: true,
-      animationData: LOTTIE_DATA
-    });
-  } else {
-    lottieAnim.goToAndPlay(0, true);
-  }
+  try {
+    if (!lottieAnim) {
+      lottieAnim = lottie.loadAnimation({
+        container: document.getElementById('lottie-container'),
+        renderer: 'svg',
+        loop: true,
+        autoplay: true,
+        animationData: LOTTIE_DATA
+      });
+    } else {
+      lottieAnim.goToAndPlay(0, true);
+    }
+  } catch(e) {}
 }
 
 function hideStoryLoading() {
@@ -1129,8 +1131,8 @@ document.getElementById('makeBtn').addEventListener('click', async () => {
   childNameVal = document.getElementById('childName').value.trim() || '친구';
   selectedAge = parseInt(document.getElementById('childAge').value) || 8;
   document.getElementById('makeBtn').disabled = true;
-  showStoryLoading();
   const loadingStart = Date.now();
+  showStoryLoading();
   try {
     const isAdult = selectedAge >= 19;
     const prompt = isAdult
