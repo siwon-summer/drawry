@@ -1267,15 +1267,20 @@ async function kananaCollect(text, pcmChunks, voiceType = 'story') {
 
     userInstruction = `${ageDesc} 캐릭터로, ${toneDesc} 읽어줘.`;
   }
-  // assistant prefill: 모델이 새 내용을 생성하지 않고 주어진 텍스트만 그대로 음성 출력
   const res = await fetch(`${KANANA_BASE_URL}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'kanana-o',
       messages: [
-        { role: 'user', content: [{ type: 'text', text: `${userInstruction}\n\n읽을 내용:` }] },
-        { role: 'assistant', content: cleanText }
+        {
+          role: 'system',
+          content: `당신은 텍스트 낭독 전문 AI입니다. 사용자가 입력한 텍스트를 ${userInstruction} 그대로만 읽어주세요. 절대로 새로운 내용을 만들거나 추가하지 마세요. 입력된 텍스트 외 어떤 말도 하지 마세요.`
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: cleanText }]
+        }
       ],
       modalities: ['text', 'audio'], stream: true
     })
