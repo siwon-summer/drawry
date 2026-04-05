@@ -1241,9 +1241,10 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
 async function kananaCollect(text, pcmChunks, voiceType = 'story') {
   const cleanText = stripEmoji(text);
 
-  let sysPrompt;
+  let sysPrompt, voiceStyle;
   if (voiceType === 'story') {
-    sysPrompt = '당신은 텍스트 낭독 AI입니다. 사용자가 입력한 텍스트를 따뜻하고 차분한 성인 여성 나레이터 목소리로, 동화책 읽어주듯 감정을 담아 그대로만 읽어주세요. 절대 새로운 내용을 추가하거나 변형하지 마세요.';
+    sysPrompt = '당신은 TTS 낭독 로봇입니다. 입력된 텍스트를 한 글자도 바꾸지 않고 그대로만 음성으로 출력합니다. 절대로 새로운 문장을 생성하거나, 질문하거나, 추가 설명을 하지 않습니다. 오직 입력 텍스트만 낭독합니다.';
+    voiceStyle = '따뜻하고 차분한 성인 여성 나레이터 목소리로';
   } else {
     const isMale = window._charGender === 'male';
     const age = window._charAge || 10;
@@ -1253,7 +1254,8 @@ async function kananaCollect(text, pcmChunks, voiceType = 'story') {
     } else {
       voiceDesc = age <= 12 ? '높고 귀여운 여자아이' : age <= 19 ? '밝고 생동감 있는 10대 여성' : age <= 35 ? '맑고 따뜻한 청년 여성' : age <= 55 ? '차분하고 포근한 중년 여성' : '온화한 노년 여성';
     }
-    sysPrompt = `당신은 텍스트 낭독 AI입니다. 사용자가 입력한 텍스트를 ${voiceDesc} 캐릭터 목소리로 그대로만 읽어주세요. 절대 새로운 내용을 추가하거나 변형하지 마세요.`;
+    sysPrompt = '당신은 TTS 낭독 로봇입니다. 입력된 텍스트를 한 글자도 바꾸지 않고 그대로만 음성으로 출력합니다. 절대로 새로운 문장을 생성하거나, 질문하거나, 추가 설명을 하지 않습니다. 오직 입력 텍스트만 낭독합니다.';
+    voiceStyle = `${voiceDesc} 캐릭터 목소리로`;
   }
 
   const res = await fetch(`${KANANA_BASE_URL}`, {
@@ -1263,9 +1265,10 @@ async function kananaCollect(text, pcmChunks, voiceType = 'story') {
       model: 'kanana-o',
       messages: [
         { role: 'system', content: sysPrompt },
-        { role: 'user', content: cleanText }
+        { role: 'user', content: `[낭독 지시] 아래 텍스트를 ${voiceStyle} 그대로 읽어주세요. 내용 추가/변경/질문 금지.\n\n${cleanText}` }
       ],
-      modalities: ['text', 'audio'], stream: true
+      modalities: ['text', 'audio'], stream: true,
+      temperature: 0
     })
   });
 
@@ -1448,8 +1451,17 @@ function addCharBubble(text, pcmChunks, kananaPromise) {
         if (kananaPromise) await kananaPromise;
       } catch(e) {}
       if (!playing) return;
-      if (pcmChunks.length > 0) { playPCM(pcmChunks, done); }
-      else { playing = false; showPlay(); }
+      if (pcmChunks.length > 0) {
+        playPCM(pcmChunks, done);
+      } else {
+        // 백그라운드 수집 실패 시 재시도
+        try {
+          await kananaCollect(text, pcmChunks, 'char');
+        } catch(e) {}
+        if (!playing) return;
+        if (pcmChunks.length > 0) { playPCM(pcmChunks, done); }
+        else { playing = false; showPlay(); }
+      }
     }
   });
   c.appendChild(row);
