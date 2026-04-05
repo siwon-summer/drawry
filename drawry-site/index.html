@@ -1259,26 +1259,40 @@ async function kananaCollect(text, pcmChunks, voiceType = 'story') {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'kanana-1.5-o-9.8b-2602',
+      model: 'kanana-o',
       messages: [
         { role: 'system', content: sysPrompt },
         { role: 'user', content: cleanText }
       ],
-      audio: { format: 'wav' }
+      modalities: ['text', 'audio'], stream: true
     })
   });
 
-  if (!res.ok) throw new Error(`TTS ${res.status}`);
-  const data = await res.json();
-  const b64 = data.choices?.[0]?.message?.audio?.data;
-  if (!b64) return;
-
-  // base64 → raw PCM Int16 (24000Hz) → Float32
-  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  const s16 = new Int16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2);
-  const f32 = new Float32Array(s16.length);
-  for (let i = 0; i < s16.length; i++) f32[i] = s16[i] / 32768;
-  pcmChunks.push(f32);
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n'); buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const d = line.slice(6).trim();
+      if (d === '[DONE]') break;
+      try {
+        const json = JSON.parse(d);
+        const delta = json.choices?.[0]?.delta;
+        const b64 = delta?.audio?.data ?? delta?.audio ?? null;
+        if (!b64 || typeof b64 !== 'string') continue;
+        const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const s16 = new Int16Array(raw.buffer);
+        const f32 = new Float32Array(s16.length);
+        for (let i = 0; i < s16.length; i++) f32[i] = s16[i] / 32768;
+        pcmChunks.push(f32);
+      } catch(e) {}
+    }
+  }
 }
 
 function stopAll() {
