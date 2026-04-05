@@ -1243,21 +1243,26 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
 
 // ── Kanana TTS
 async function kananaCollect(text, pcmChunks, voiceType = 'story') {
-  let ttsPrompt;
+  const cleanText = stripEmoji(text);
+  let userInstruction;
   if (voiceType === 'story') {
-    ttsPrompt = `[Voice: calm, warm adult female narrator, slow paced, gentle storytelling tone like reading a children's book bedtime story]\n${stripEmoji(text)}`;
+    userInstruction = '따뜻하고 차분한 성인 여성 나레이터 목소리로, 동화책을 읽어주듯 천천히 감정을 담아 읽어줘.';
   } else {
     const isMale = window._charGender === 'male';
-    ttsPrompt = isMale
-      ? `[Voice: cheerful friendly male character, upbeat energetic tone, slightly higher pitch, like an animated cartoon character talking to a child]\n${stripEmoji(text)}`
-      : `[Voice: bright cheerful young female character, playful bubbly tone, like an animated cartoon character talking to a child]\n${stripEmoji(text)}`;
+    userInstruction = isMale
+      ? '낮고 활기찬 남성 캐릭터 목소리로, 아이에게 말하듯 밝고 친근하게 읽어줘.'
+      : '높고 밝고 귀여운 여성 캐릭터 목소리로, 아이에게 말하듯 생동감 있게 읽어줘.';
   }
+  // assistant prefill: 모델이 새 내용을 생성하지 않고 주어진 텍스트만 그대로 음성 출력
   const res = await fetch(`${KANANA_BASE_URL}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'kanana-o',
-      messages: [{ role: 'user', content: [{ type: 'text', text: ttsPrompt }] }],
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: `${userInstruction}\n\n읽을 내용:` }] },
+        { role: 'assistant', content: cleanText }
+      ],
       modalities: ['text', 'audio'], stream: true
     })
   });
