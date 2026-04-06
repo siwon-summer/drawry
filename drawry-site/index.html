@@ -1219,8 +1219,8 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
 
     const pcm = [];
     const btn = document.getElementById('audioBtn');
-    btn.onclick = () => playOrCollect(parsed.story, pcm, btn);
-    kananaCollect(parsed.story, pcm).catch(() => {});
+    const storyCollect = kananaCollect(parsed.story, pcm).catch(() => {});
+    btn.onclick = () => playOrCollect(parsed.story, pcm, btn, storyCollect);
 
     const elapsed = Date.now() - loadingStart;
     const minDelay = 2000;
@@ -1371,19 +1371,25 @@ function setAudioBtn(btn, state) {
   else btn.innerHTML = `<span>음성으로 들어보기</span>`;
 }
 
-function playOrCollect(text, pcmChunks, btn) {
+async function playOrCollect(text, pcmChunks, btn, collectPromise) {
   if (isPlayingGlobal) {
     stopAll(); setAudioBtn(btn, 'idle'); return;
   }
   const done = () => setAudioBtn(btn, 'idle');
-  setAudioBtn(btn, 'playing');
+  setAudioBtn(btn, 'loading');
+  // 수집이 아직 진행 중이면 완료될 때까지 대기
+  if (collectPromise) {
+    try { await collectPromise; } catch(e) {}
+  }
+  // 수집된 게 없으면 지금 수집
+  if (pcmChunks.length === 0) {
+    try { await kananaCollect(text, pcmChunks); } catch(e) {}
+  }
   if (pcmChunks.length > 0) {
+    setAudioBtn(btn, 'playing');
     playPCM(pcmChunks, done);
   } else {
-    setAudioBtn(btn, 'loading');
-    kananaCollect(text, pcmChunks)
-      .then(() => { if (pcmChunks.length) { setAudioBtn(btn, 'playing'); playPCM(pcmChunks, done); } else done(); })
-      .catch(() => done());
+    done();
   }
 }
 
