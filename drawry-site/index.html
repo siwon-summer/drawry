@@ -1304,24 +1304,31 @@ async function kananaCollect(text, pcmChunks, voiceType = 'story') {
   }
 }
 
+function unlockAudio() {
+  if (window._audioCtx && window._audioCtx.state !== 'closed') {
+    window._audioCtx.resume().catch(() => {});
+    return;
+  }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+  ctx.resume().catch(() => {});
+  window._audioCtx = ctx;
+}
+
 function stopAll() {
-  // Web Audio API 정지
+  // Web Audio API 정지 (context는 유지 — iOS 재사용을 위해)
   currentSources.forEach(s => { try { s.stop(); } catch(e){} });
   currentSources = [];
   isPlayingGlobal = false;
-  // 브라우저 TTS 정지
   try { speechSynthesis.cancel(); } catch(e) {}
-  // AudioContext 닫기
-  if (window._activeAudioCtx) {
-    try { window._activeAudioCtx.close(); } catch(e) {}
-    window._activeAudioCtx = null;
-  }
 }
 
 function playPCM(pcmChunks, onEnd) {
   stopAll();
-  const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-  window._activeAudioCtx = ctx;
+  // iOS: 유저 제스처 시점에 unlock된 context 재사용
+  const ctx = (window._audioCtx && window._audioCtx.state !== 'closed')
+    ? window._audioCtx
+    : new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+  window._audioCtx = ctx;
   ctx.resume().catch(() => {});
   isPlayingGlobal = true;
   let t = ctx.currentTime; let last = null;
@@ -1335,8 +1342,6 @@ function playPCM(pcmChunks, onEnd) {
   }
   if (last) last.onended = () => {
     isPlayingGlobal = false;
-    try { ctx.close(); } catch(e) {}
-    if (window._activeAudioCtx === ctx) window._activeAudioCtx = null;
     if (onEnd) onEnd();
   };
 }
@@ -1375,6 +1380,7 @@ async function playOrCollect(text, pcmChunks, btn, collectPromise) {
   if (isPlayingGlobal) {
     stopAll(); setAudioBtn(btn, 'idle'); return;
   }
+  unlockAudio(); // iOS: 유저 제스처 직후 동기적으로 unlock
   const done = () => setAudioBtn(btn, 'idle');
   setAudioBtn(btn, 'loading');
   // 수집이 아직 진행 중이면 완료될 때까지 대기
@@ -1453,6 +1459,7 @@ function addCharBubble(text, pcmChunks, kananaPromise) {
   const showPause = () => { playIco.style.display = 'none'; pauseIco.style.display = ''; };
   icon.addEventListener('click', async () => {
     if (playing) { stopAll(); playing = false; showPlay(); return; }
+    unlockAudio(); // iOS: 유저 제스처 직후 동기적으로 unlock
     playing = true; showPause();
     const done = () => { playing = false; showPlay(); };
     if (pcmChunks.length > 0) {
