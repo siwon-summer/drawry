@@ -972,7 +972,12 @@ function showScreen(id) {
   stopAll();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  window.scrollTo(0, 0);
+  // DOM 변경 후 실제 스크롤 리셋 (iOS Safari 포함)
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  });
 }
 
 function goHome() {
@@ -1312,6 +1317,12 @@ function unlockAudio() {
     return;
   }
   const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+  // iOS는 무음 버퍼를 실제 재생해야 AudioContext가 unlock됨
+  const silent = ctx.createBuffer(1, 1, 24000);
+  const src = ctx.createBufferSource();
+  src.buffer = silent;
+  src.connect(ctx.destination);
+  src.start(0);
   ctx.resume().catch(() => {});
   window._audioCtx = ctx;
 }
@@ -1333,7 +1344,7 @@ function playPCM(pcmChunks, onEnd) {
   window._audioCtx = ctx;
   ctx.resume().catch(() => {});
   isPlayingGlobal = true;
-  let t = ctx.currentTime; let last = null;
+  let t = ctx.currentTime + 0.1; let last = null;
   for (const f32 of pcmChunks) {
     const ab = ctx.createBuffer(1, f32.length, 24000);
     ab.copyToChannel(f32, 0);
