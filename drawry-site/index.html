@@ -1267,10 +1267,15 @@ async function kananaCollect(text, pcmChunks, voiceType = 'story') {
         { role: 'system', content: sysPrompt },
         { role: 'user', content: `[낭독 지시] 아래 텍스트를 ${voiceStyle} 그대로 읽어주세요. 내용 추가/변경/질문 금지.\n\n${cleanText}` }
       ],
-      modalities: ['text', 'audio'], stream: true,
-      temperature: 0
+      modalities: ['text', 'audio'], stream: true
     })
   });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    console.error('[kananaCollect] API error', res.status, err);
+    return;
+  }
 
   const reader = res.body.getReader();
   const dec = new TextDecoder();
