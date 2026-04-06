@@ -1074,7 +1074,9 @@ function goHome() {
 
 function goChat() {
   document.getElementById('chatScreenTitle').textContent = `${charName}과(와) 대화`;
-  document.getElementById('chatContainer').innerHTML = '';
+  const chatContainer = document.getElementById('chatContainer');
+  chatContainer.innerHTML = '';
+  chatContainer.scrollTop = 0;
   showScreen('screen3');
   if (window._firstMessage) {
     const pcm = [];
