@@ -161,7 +161,7 @@ body {
 .image-section { padding: 0 20px; flex-shrink: 0; width: 100%; max-width: 500px; margin: 0 auto; box-sizing: border-box; }
 .image-placeholder {
   background: var(--bg-input); border: 1px solid var(--border);
-  border-radius: 12px; height: 170px; overflow: hidden;
+  border-radius: 12px; aspect-ratio: 4 / 3; overflow: hidden;
 }
 .image-placeholder img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .story-section { padding: 40px 20px 100px; flex-shrink: 0; width: 100%; max-width: 500px; margin: 0 auto; box-sizing: border-box; }
@@ -201,7 +201,7 @@ body {
 }
 #screen3.active .chat-input-area {
   position: relative !important;
-  bottom: auto;
+  bottom: auto; left: auto; right: auto;
   flex-shrink: 0;
 }
 .chat-container {
@@ -985,11 +985,26 @@ let currentSources = [], isPlayingGlobal = false;
 let mediaRecorder = null;
 
 // ── 화면 전환
+function _syncScreen3Height() {
+  const s3 = document.getElementById('screen3');
+  if (!s3.classList.contains('active')) return;
+  const vv = window.visualViewport;
+  s3.style.height = vv.height + 'px';
+  s3.style.top = vv.offsetTop + 'px';
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', _syncScreen3Height);
+  window.visualViewport.addEventListener('scroll', _syncScreen3Height);
+}
+
 function showScreen(id) {
   stopAll();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const s3 = document.getElementById('screen3');
+  s3.style.height = '';
+  s3.style.top = '';
   document.getElementById(id).classList.add('active');
-  // DOM 변경 후 실제 스크롤 리셋 (iOS Safari 포함)
+  if (id === 'screen3' && window.visualViewport) _syncScreen3Height();
   requestAnimationFrame(() => {
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
@@ -1168,7 +1183,7 @@ document.getElementById('makeBtn').addEventListener('click', async () => {
 JSON으로만 응답:
 {
   "title": "제목",
-  "characterName": "주인공이름",
+  "characterName": "그림 속 캐릭터의 생김새·색깔·분위기를 반영한 독창적인 이름(루미·미미·코코처럼 흔한 이름 절대 금지, 매번 새로운 이름)",
   "story": "본문4~6문장 (어른의 감정에 공감하고 위로하는 내용)",
   "firstMessage": "주인공이 ${childNameVal}에게 건네는 따뜻한 공감의 첫 마디 1문장",
   "gender": "male 또는 female",
@@ -1187,7 +1202,7 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
 JSON으로만 응답:
 {
   "title": "제목",
-  "characterName": "주인공이름",
+  "characterName": "그림 속 캐릭터의 생김새·색깔·분위기를 반영한 독창적인 이름(루미·미미·코코처럼 흔한 이름 절대 금지, 매번 새로운 이름)",
   "story": "본문4~6문장",
   "firstMessage": "주인공이 ${childNameVal}에게 하는 첫 마디 1문장",
   "gender": "male 또는 female",
