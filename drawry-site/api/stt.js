@@ -1,10 +1,5 @@
 const https = require('https');
 
-module.exports = {
-  config: { api: { bodyParser: false } },
-};
-
-// Re-export handler (Vercel picks up `module.exports` or named `export default`)
 module.exports = function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -44,3 +39,6 @@ module.exports = function handler(req, res) {
 
   req.pipe(upstream_req);
 };
+
+// bodyParser: false 필수 — multipart/form-data를 raw로 upstream에 전달
+module.exports.config = { api: { bodyParser: false } };
