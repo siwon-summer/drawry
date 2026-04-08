@@ -1335,14 +1335,15 @@ function stopAll() {
   try { speechSynthesis.cancel(); } catch(e) {}
 }
 
-function playPCM(pcmChunks, onEnd) {
+async function playPCM(pcmChunks, onEnd) {
   stopAll();
   // iOS: 유저 제스처 시점에 unlock된 context 재사용
   const ctx = (window._audioCtx && window._audioCtx.state !== 'closed')
     ? window._audioCtx
     : new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
   window._audioCtx = ctx;
-  ctx.resume().catch(() => {});
+  // iOS: resume이 완전히 완료된 후 재생 (suspended 상태에서 start하면 무음)
+  try { await ctx.resume(); } catch(e) {}
   isPlayingGlobal = true;
   let t = ctx.currentTime + 0.1; let last = null;
   for (const f32 of pcmChunks) {
@@ -1406,7 +1407,7 @@ async function playOrCollect(text, pcmChunks, btn, collectPromise) {
   }
   if (pcmChunks.length > 0) {
     setAudioBtn(btn, 'playing');
-    playPCM(pcmChunks, done);
+    await playPCM(pcmChunks, done);
   } else {
     done();
   }
@@ -1476,21 +1477,21 @@ function addCharBubble(text, pcmChunks, kananaPromise) {
     playing = true; showPause();
     const done = () => { playing = false; showPlay(); };
     if (pcmChunks.length > 0) {
-      playPCM(pcmChunks, done);
+      await playPCM(pcmChunks, done);
     } else {
       try {
         if (kananaPromise) await kananaPromise;
       } catch(e) {}
       if (!playing) return;
       if (pcmChunks.length > 0) {
-        playPCM(pcmChunks, done);
+        await playPCM(pcmChunks, done);
       } else {
         // 백그라운드 수집 실패 시 재시도
         try {
           await kananaCollect(text, pcmChunks, 'char');
         } catch(e) {}
         if (!playing) return;
-        if (pcmChunks.length > 0) { playPCM(pcmChunks, done); }
+        if (pcmChunks.length > 0) { await playPCM(pcmChunks, done); }
         else { playing = false; showPlay(); }
       }
     }
