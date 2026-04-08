@@ -191,7 +191,9 @@ body {
 /* 화면 3 채팅 — 키보드 올라와도 레이아웃 고정 */
 #screen3.active {
   position: fixed;
-  inset: 0;
+  top: 0; left: 0; right: 0;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   flex-direction: column;
 }
@@ -990,12 +992,11 @@ function _syncScreen3Height() {
   const s3 = document.getElementById('screen3');
   if (!s3.classList.contains('active')) return;
   const vv = window.visualViewport;
-  s3.style.height = vv.height + 'px';
-  s3.style.top = vv.offsetTop + 'px';
+  const keyboardH = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+  s3.style.height = (window.innerHeight - keyboardH) + 'px';
 }
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', _syncScreen3Height);
-  window.visualViewport.addEventListener('scroll', _syncScreen3Height);
 }
 
 function showScreen(id) {
@@ -1003,9 +1004,8 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const s3 = document.getElementById('screen3');
   s3.style.height = '';
-  s3.style.top = '';
   document.getElementById(id).classList.add('active');
-  if (id === 'screen3' && window.visualViewport) _syncScreen3Height();
+  if (id === 'screen3') _syncScreen3Height();
   requestAnimationFrame(() => {
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
