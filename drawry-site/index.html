@@ -202,13 +202,9 @@ body {
   top: auto; left: auto; right: auto;
   flex-shrink: 0;
 }
-#screen3.active .chat-input-area {
-  position: relative !important;
-  bottom: auto; left: auto; right: auto;
-  flex-shrink: 0;
-}
+/* chat-input-area는 항상 fixed bottom - 오버라이드 없음 */
 .chat-container {
-  flex: 1; overflow-y: auto; padding: 20px 0;
+  flex: 1; overflow-y: auto; padding: 20px 0 130px;
   display: flex; flex-direction: column; gap: 18px;
   width: 100%; max-width: 500px; margin: 0 auto; box-sizing: border-box;
 }
@@ -988,24 +984,10 @@ let currentSources = [], isPlayingGlobal = false;
 let mediaRecorder = null;
 
 // ── 화면 전환
-function _syncScreen3Height() {
-  const s3 = document.getElementById('screen3');
-  if (!s3.classList.contains('active')) return;
-  const vv = window.visualViewport;
-  const keyboardH = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-  s3.style.height = (window.innerHeight - keyboardH) + 'px';
-}
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', _syncScreen3Height);
-}
-
 function showScreen(id) {
   stopAll();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const s3 = document.getElementById('screen3');
-  s3.style.height = '';
   document.getElementById(id).classList.add('active');
-  if (id === 'screen3') _syncScreen3Height();
   requestAnimationFrame(() => {
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
