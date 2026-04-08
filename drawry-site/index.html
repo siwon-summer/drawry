@@ -1646,6 +1646,40 @@ function toggleVoice() {
 
 let recTimerInterval = null;
 
+async function blobToWavBase64(blob) {
+  const arrayBuf = await blob.arrayBuffer();
+  const tmpCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const decoded = await tmpCtx.decodeAudioData(arrayBuf);
+  tmpCtx.close();
+  // mix down to mono at 16kHz
+  const numFrames = decoded.length;
+  const pcm = new Float32Array(numFrames);
+  for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+    const data = decoded.getChannelData(ch);
+    for (let i = 0; i < numFrames; i++) pcm[i] += data[i];
+  }
+  if (decoded.numberOfChannels > 1) for (let i = 0; i < numFrames; i++) pcm[i] /= decoded.numberOfChannels;
+  // encode to 16-bit PCM WAV
+  const wavBuf = new ArrayBuffer(44 + numFrames * 2);
+  const view = new DataView(wavBuf);
+  const sampleRate = decoded.sampleRate;
+  const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + numFrames * 2, true);
+  writeStr(8, 'WAVE'); writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  writeStr(36, 'data'); view.setUint32(40, numFrames * 2, true);
+  for (let i = 0; i < numFrames; i++) {
+    const s = Math.max(-1, Math.min(1, pcm[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  const bytes = new Uint8Array(wavBuf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
 function handleMic() {
   if (!voiceOn) return;
   const micIcon = document.getElementById('micIcon');
@@ -1659,7 +1693,6 @@ function handleMic() {
 
   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     const chunks = [];
-    // iOS는 webm 미지원 → 브라우저가 지원하는 포맷 자동 선택
     const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || '';
     mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
 
@@ -1672,18 +1705,29 @@ function handleMic() {
       micStopIcon.style.display = 'none';
 
       const actualMime = mediaRecorder.mimeType || mimeType || 'audio/webm';
-      const ext = actualMime.includes('mp4') ? 'm4a' : actualMime.includes('ogg') ? 'ogg' : 'webm';
       const blob = new Blob(chunks, { type: actualMime });
       const inp = document.getElementById('chatInput');
       inp.value = '';
       inp.placeholder = '음성 변환 중...';
       try {
-        const formData = new FormData();
-        formData.append('file', blob, `voice.${ext}`);
-        formData.append('model', 'kanana-o');
-        const res = await fetch('/api/stt', { method: 'POST', body: formData });
+        const wavBase64 = await blobToWavBase64(blob);
+        const res = await fetch(KANANA_BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'kanana-o',
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'input_audio', input_audio: { data: wavBase64, format: 'wav' } },
+                { type: 'text', text: '음성인식 결과만 그대로 출력해줘.' }
+              ]
+            }],
+            modalities: ['text']
+          })
+        });
         const data = await res.json();
-        inp.value = data.text || '';
+        inp.value = data.choices?.[0]?.message?.content || '';
         inp.placeholder = '메시지를 입력하세요...';
         inp.focus();
       } catch(e) {
@@ -1695,7 +1739,6 @@ function handleMic() {
     micIcon.style.display = 'none';
     micStopIcon.style.display = '';
 
-    // 타이머 시작
     let secs = 0;
     timerEl.textContent = '0s';
     timerEl.style.display = '';
