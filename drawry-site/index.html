@@ -188,19 +188,18 @@ body {
 .audio-btn:hover { background: #e2e3e3; }
 
 /* 화면 3 채팅 — 키보드 올라와도 레이아웃 고정 */
-#screen3 {
-  position: fixed !important;
+#screen3.active {
+  position: fixed;
   inset: 0;
   overflow: hidden;
-  display: flex;
   flex-direction: column;
 }
-#screen3 .header-row {
+#screen3.active .header-row {
   position: relative !important;
   top: auto; left: auto; right: auto;
   flex-shrink: 0;
 }
-#screen3 .chat-input-area {
+#screen3.active .chat-input-area {
   position: relative !important;
   bottom: auto;
   flex-shrink: 0;
