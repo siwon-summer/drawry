@@ -1482,8 +1482,15 @@ let recTimerInterval = null;
 
 async function blobToWavBase64(blob) {
   const arrayBuf = await blob.arrayBuffer();
-  const tmpCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-  const decoded = await tmpCtx.decodeAudioData(arrayBuf);
+  const tmpCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (tmpCtx.state === 'suspended') await tmpCtx.resume();
+  let decoded;
+  try {
+    decoded = await tmpCtx.decodeAudioData(arrayBuf.slice(0));
+  } catch(e) {
+    tmpCtx.close();
+    throw new Error('decodeAudioData 실패: ' + e.message);
+  }
   tmpCtx.close();
   // mix down to mono at 16kHz
   const numFrames = decoded.length;
@@ -1540,11 +1547,22 @@ function handleMic() {
 
       const actualMime = mediaRecorder.mimeType || mimeType || 'audio/webm';
       const blob = new Blob(chunks, { type: actualMime });
-      if (!blob.size) return;
 
-      const inp = document.getElementById('chatInput');
-      inp.value = '';
-      inp.placeholder = '음성 변환 중...';
+      // 채팅창에 로딩 버블 표시
+      const loadingId = 'stt-loading-' + Date.now();
+      const chatCont = document.getElementById('chatContainer');
+      const loadingEl = document.createElement('div');
+      loadingEl.id = loadingId;
+      loadingEl.className = 'msg-row-user';
+      loadingEl.innerHTML = '<div class="user-content"><div class="bubble-user" style="opacity:0.5">🎤 변환 중...</div></div>';
+      chatCont.appendChild(loadingEl);
+      chatCont.scrollTop = chatCont.scrollHeight;
+
+      if (!blob.size) {
+        loadingEl.remove();
+        return;
+      }
+
       try {
         const wavBase64 = await blobToWavBase64(blob);
         const res = await fetch(KANANA_BASE_URL, {
@@ -1564,13 +1582,14 @@ function handleMic() {
         });
         const data = await res.json();
         const text = (data.choices?.[0]?.message?.content || '').trim();
-        inp.placeholder = '메시지를 입력하세요...';
+        loadingEl.remove();
         if (text) {
+          const inp = document.getElementById('chatInput');
           inp.value = text;
           sendChat();
         }
       } catch(e) {
-        inp.placeholder = '음성 인식 실패. 직접 입력해주세요.';
+        loadingEl.querySelector('.bubble-user').textContent = '🎤 음성 인식 실패';
         console.error('STT error:', e);
       }
     };
