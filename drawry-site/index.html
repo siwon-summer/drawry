@@ -170,8 +170,9 @@ body {
   border-radius: 12px; overflow: hidden;
   position: relative; width: 100%;
   aspect-ratio: 4 / 3;
+  height: auto;
 }
-.image-placeholder img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 12px; }
+.image-placeholder img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; border-radius: 12px; }
 .story-section { padding: 40px 20px 100px; flex-shrink: 0; width: 100%; max-width: 500px; margin: 0 auto; box-sizing: border-box; }
 .story-label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
 .story-card {
@@ -1077,11 +1078,8 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
     document.getElementById('charNameDisplay').textContent = charName;
     document.getElementById('storyTextDisplay').textContent = parsed.story;
     const storyImgEl = document.getElementById('storyImage');
+    storyImgEl.style.height = '';
     storyImgEl.innerHTML = `<img src="${imageDataUrl}" alt="그림">`;
-    requestAnimationFrame(() => {
-      const w = storyImgEl.getBoundingClientRect().width;
-      if (w > 0) storyImgEl.style.height = Math.round(w * 0.75) + 'px';
-    });
 
     const pcm = [];
     const btn = document.getElementById('audioBtn');
