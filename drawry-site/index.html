@@ -731,7 +731,10 @@ body {
 
   <div class="chat-container" id="chatContainer"></div>
 
-  <div class="chat-input-area">
+</div>
+
+<div class="footer-fixed" id="chatInputArea" style="display:none">
+  <div class="footer-fixed-inner" style="padding:12px 20px 20px; display:flex; flex-direction:column; gap:10px;">
     <div class="chat-input-inner">
     <div class="voice-row">
       <div class="toggle-wrap" id="voiceToggle" onclick="toggleVoice()">
@@ -761,6 +764,7 @@ body {
     </div>
   </div>
 </div>
+
 
 
 
@@ -809,28 +813,12 @@ let selectedAge = 8, chatHistory = [], voiceOn = false;
 let currentSources = [], isPlayingGlobal = false;
 let mediaRecorder = null;
 
-// ── 브라우저 하단 바(Chrome 등) 대응: visualViewport 기준으로 채팅 입력창 위치 고정
-function _fixChatInputBottom() {
-  const el = document.querySelector('.chat-input-area');
-  if (!el) return;
-  if (!document.getElementById('screen3').classList.contains('active')) return;
-  const vv = window.visualViewport;
-  const bottomGap = window.innerHeight - (vv.offsetTop + vv.height);
-  el.style.bottom = Math.max(0, bottomGap) + 'px';
-}
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', _fixChatInputBottom);
-  window.visualViewport.addEventListener('scroll', _fixChatInputBottom);
-}
-
-// ── 화면 전환
+/// ── 화면 전환
 function showScreen(id) {
   stopAll();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  // 다른 화면으로 이동 시 채팅 입력창 bottom 초기화
-  document.querySelector('.chat-input-area').style.bottom = '';
   document.getElementById(id).classList.add('active');
-  if (id === 'screen3') requestAnimationFrame(_fixChatInputBottom);
+  document.getElementById('chatInputArea').style.display = id === 'screen3' ? '' : 'none';
   requestAnimationFrame(() => {
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
