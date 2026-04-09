@@ -1540,6 +1540,8 @@ function handleMic() {
 
       const actualMime = mediaRecorder.mimeType || mimeType || 'audio/webm';
       const blob = new Blob(chunks, { type: actualMime });
+      if (!blob.size) return;
+
       const inp = document.getElementById('chatInput');
       inp.value = '';
       inp.placeholder = '음성 변환 중...';
@@ -1561,11 +1563,15 @@ function handleMic() {
           })
         });
         const data = await res.json();
-        inp.value = data.choices?.[0]?.message?.content || '';
+        const text = (data.choices?.[0]?.message?.content || '').trim();
         inp.placeholder = '메시지를 입력하세요...';
-        inp.focus();
+        if (text) {
+          inp.value = text;
+          sendChat();
+        }
       } catch(e) {
         inp.placeholder = '음성 인식 실패. 직접 입력해주세요.';
+        console.error('STT error:', e);
       }
     };
 
