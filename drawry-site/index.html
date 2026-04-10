@@ -252,15 +252,7 @@ body {
   word-break: keep-all;
 }
 
-/* 채팅 입력 */
-.chat-input-area {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: var(--white); border-top: 1px solid rgba(24,37,61,0.06);
-  padding: 0;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  display: flex; justify-content: center;
-  z-index: 100;
-}
+/* .chat-input-area 미사용 — #chatInputArea(.footer-fixed)로 대체됨 */
 .chat-input-inner {
   width: 100%; max-width: 500px;
   padding: 12px 20px 20px;
@@ -822,6 +814,26 @@ let selectedAge = 8, chatHistory = [], voiceOn = false;
 let currentSources = [], isPlayingGlobal = false;
 let mediaRecorder = null;
 
+/// ── visualViewport 보정: Chrome Android 하단 탭바 대응
+function adjustChatInputBottom() {
+  const el = document.getElementById('chatInputArea');
+  if (!el || el.style.display === 'none') return;
+  if (window.visualViewport) {
+    // visualViewport.height = 실제 보이는 영역 (키보드·탭바 제외)
+    // window.innerHeight = 레이아웃 뷰포트 (탭바가 덮어도 변화 없음)
+    const vv = window.visualViewport;
+    const bottomGap = window.innerHeight - (vv.offsetTop + vv.height);
+    el.style.bottom = Math.max(0, bottomGap) + 'px';
+  } else {
+    el.style.bottom = '';
+  }
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', adjustChatInputBottom);
+  window.visualViewport.addEventListener('scroll', adjustChatInputBottom);
+}
+
 /// ── 화면 전환
 function showScreen(id) {
   stopAll();
@@ -832,6 +844,7 @@ function showScreen(id) {
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
+    adjustChatInputBottom();
   });
 }
 
