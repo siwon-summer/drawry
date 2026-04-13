@@ -203,7 +203,7 @@ body {
 }
 .chat-root {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  left: 0; right: 0; bottom: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -826,12 +826,18 @@ let selectedAge = 8, chatHistory = [], voiceOn = false;
 let currentSources = [], isPlayingGlobal = false;
 let mediaRecorder = null;
 
-/// ── visualViewport: chat-root 높이를 실제 보이는 영역에 맞춤 (Chrome 탭바·키보드 대응)
+// ── visualViewport: chat-root 높이·top을 실제 보이는 영역에 맞춤 (Chrome 탭바·키보드 대응)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => {
+  const applyViewport = () => {
     const root = document.querySelector('.chat-root');
-    if (root) root.style.height = window.visualViewport.height + 'px';
-  });
+    if (!root) return;
+    const vv = window.visualViewport;
+    root.style.height = vv.height + 'px';
+    root.style.top = vv.offsetTop + 'px';
+  };
+  window.visualViewport.addEventListener('resize', applyViewport);
+  window.visualViewport.addEventListener('scroll', applyViewport);
+  applyViewport(); // 초기 실행
 }
 
 /// ── 화면 전환
@@ -951,7 +957,7 @@ function goChat() {
   showScreen('screen3');
   if (window._firstMessage) {
     const pcm = [];
-    const p = characterTTS(window._firstMessage, pcm, charName).catch(() => {});
+    const p = characterTTS(window._firstMessage, pcm, window._charType || 'default').catch(() => {});
     addCharBubble(window._firstMessage, pcm, p);
     // API는 user → assistant 순서를 요구하므로 synthetic user message로 시작
     chatHistory = [
@@ -1018,7 +1024,7 @@ JSON으로만 응답:
 {
   "title": "제목",
   "characterName": "그림 속 캐릭터의 생김새·색깔·분위기를 반영한 독창적인 이름(루미·미미·코코처럼 흔한 이름 절대 금지, 매번 새로운 이름)",
-  "characterType": "캐릭터 종류(강아지/고양이/곰/토끼/여우/새/물고기/아이/청년/할머니/할아버지/왕/요정/로봇/괴물/기타 중 가장 가까운 것 하나)",
+  "characterType": "반드시 다음 중 하나의 영어 값: dog/cat/bear/rabbit/fox/child/elder/king/default",
   "story": "본문4~6문장 (어른의 감정에 공감하고 위로하는 내용)",
   "firstMessage": "주인공이 ${childNameVal}에게 건네는 따뜻한 공감의 첫 마디 1문장",
   "gender": "male 또는 female",
@@ -1038,7 +1044,7 @@ JSON으로만 응답:
 {
   "title": "제목",
   "characterName": "그림 속 캐릭터의 생김새·색깔·분위기를 반영한 독창적인 이름(루미·미미·코코처럼 흔한 이름 절대 금지, 매번 새로운 이름)",
-  "characterType": "캐릭터 종류(강아지/고양이/곰/토끼/여우/새/물고기/아이/청년/할머니/할아버지/왕/요정/로봇/괴물/기타 중 가장 가까운 것 하나)",
+  "characterType": "반드시 다음 중 하나의 영어 값: dog/cat/bear/rabbit/fox/child/elder/king/default",
   "story": "본문4~6문장",
   "firstMessage": "주인공이 ${childNameVal}에게 하는 첫 마디 1문장",
   "gender": "male 또는 female",
@@ -1076,7 +1082,8 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
     const parsed = JSON.parse(m[0]);
 
     charName = parsed.characterName;
-    window._charType = parsed.characterType || null;
+    window._charType = parsed.characterType || 'default';
+    console.log('[동화생성] characterType:', window._charType, '/ characterName:', charName);
     window._charGender = parsed.gender || 'female';
     window._charAge = parsed.characterAge || null;
     storyContext = `제목: ${parsed.title}\n주인공: ${charName}\n내용: ${parsed.story}`;
@@ -1122,47 +1129,22 @@ function narratorTTS(text, pcmChunks) {
   return kananaCollect(text, pcmChunks, '따뜻하고 차분한 성인 여성 나레이터 목소리로');
 }
 
-// 캐릭터 대화 전용 (캐릭터 종류에 따라 다른 목소리)
-function characterTTS(text, pcmChunks, characterName) {
-  const voiceMap = {
-    // 동물 캐릭터
-    '강아지': '밝고 명랑하며 꼬리를 흔드는 것 같이 활발한 강아지 캐릭터 목소리로',
-    '고양이': '차분하고 도도하며 약간 신비로운 고양이 캐릭터 목소리로',
-    '곰':     '낮고 묵직하며 부드럽고 따뜻한 곰 캐릭터 목소리로',
-    '토끼':   '귀엽고 빠르며 깡충깡충 뛰는 것 같은 토끼 캐릭터 목소리로',
-    '여우':   '영리하고 약간 교활하며 매력적인 여우 캐릭터 목소리로',
-    '새':     '가볍고 맑으며 노래하듯 경쾌한 새 캐릭터 목소리로',
-    '물고기': '몽글몽글하고 조용하며 신비로운 물고기 캐릭터 목소리로',
-    // 사람 캐릭터
-    '아이':   '높고 순수하며 천진난만한 어린 아이 캐릭터 목소리로',
-    '청년':   '밝고 활기차며 친근한 청년 캐릭터 목소리로',
-    '할머니': '나이 든 따뜻하고 정감 있는 할머니 캐릭터 목소리로',
-    '할아버지': '낮고 묵직하며 인자한 할아버지 캐릭터 목소리로',
-    '왕':     '위엄 있고 낮으며 권위 있는 왕 캐릭터 목소리로',
-    // 기타 캐릭터
-    '요정':   '맑고 영롱하며 마법 같은 느낌의 요정 캐릭터 목소리로',
-    '로봇':   '또렷하고 기계적이며 친절한 로봇 캐릭터 목소리로',
-    '괴물':   '낮고 거칠지만 의외로 귀여운 괴물 캐릭터 목소리로',
-  };
+// 캐릭터 대화 전용 (characterType 영어 키로 목소리 분기)
+const CHAR_VOICE_MAP = {
+  'dog':     '밝고 활발하며 꼬리를 흔드는 강아지 캐릭터. 짧고 경쾌한 말투로',
+  'cat':     '도도하고 느릿하며 차분한 고양이 캐릭터. 낮고 부드러운 말투로',
+  'bear':    '크고 낮은 목소리의 곰 캐릭터. 느리고 묵직한 말투로',
+  'rabbit':  '작고 빠르며 겁이 많은 토끼 캐릭터. 높고 조심스러운 말투로',
+  'fox':     '영리하고 능글맞은 여우 캐릭터. 부드럽지만 계산적인 말투로',
+  'child':   '밝고 순수한 어린이 캐릭터. 높고 맑은 목소리로',
+  'elder':   '따뜻하고 연륜 있는 할머니/할아버지 캐릭터. 낮고 느린 말투로',
+  'king':    '위엄 있고 권위적인 왕 캐릭터. 낮고 또렷한 말투로',
+  'default': '밝고 친근한 중성적 동화 캐릭터 목소리로',
+};
 
-  // window._charType(AI가 분류한 종류)를 우선 사용, 없으면 characterName으로 fallback
-  const charType = window._charType || characterName;
-  let voiceStyle = voiceMap[charType];
-
-  if (!voiceStyle) {
-    // 매핑 없을 때: 성별/나이 기반 기본값
-    const isMale = window._charGender === 'male';
-    const age = window._charAge || 10;
-    let voiceDesc;
-    if (isMale) {
-      voiceDesc = age <= 12 ? '높고 명랑한 남자아이' : age <= 19 ? '활기찬 10대 남성' : age <= 35 ? '낮고 친근한 청년 남성' : age <= 55 ? '중후한 중년 남성' : '따뜻한 노년 남성';
-    } else {
-      voiceDesc = age <= 12 ? '높고 귀여운 여자아이' : age <= 19 ? '밝고 생동감 있는 10대 여성' : age <= 35 ? '맑고 따뜻한 청년 여성' : age <= 55 ? '차분하고 포근한 중년 여성' : '온화한 노년 여성';
-    }
-    voiceStyle = `${voiceDesc} 캐릭터 목소리로`;
-  }
-
-  console.log('[TTS] 캐릭터:', characterName, '→ 종류:', charType, '→ 목소리:', voiceStyle);
+function characterTTS(text, pcmChunks, characterType) {
+  const voiceStyle = CHAR_VOICE_MAP[characterType] || CHAR_VOICE_MAP['default'];
+  console.log('[TTS] 캐릭터 타입:', characterType, '→ 스타일:', voiceStyle);
   return kananaCollect(text, pcmChunks, voiceStyle);
 }
 
@@ -1430,7 +1412,7 @@ function addCharBubble(text, pcmChunks, kananaPromise) {
       } else {
         // 백그라운드 수집 실패 시 재시도
         try {
-          await characterTTS(text, pcmChunks, charName);
+          await characterTTS(text, pcmChunks, window._charType || 'default');
         } catch(e) {}
         if (!playing) return;
         if (pcmChunks.length > 0) { await playPCM(pcmChunks, done); }
@@ -1485,7 +1467,7 @@ async function sendChat() {
     const reply = data.choices?.[0]?.message?.content?.trim() || '...';
     chatHistory.push({ role: 'assistant', content: reply });
     const pcm = [];
-    const p = characterTTS(reply, pcm, charName).catch(() => {});
+    const p = characterTTS(reply, pcm, window._charType || 'default').catch(() => {});
     addCharBubble(reply, pcm, p);
   } catch(e) {
     const msg = e.message === 'quota' ? 'API 사용량 한도가 초과됐어요. 잠시 후 다시 시도해줘요!' : '앗, 잠깐 말을 잃었어요!';
