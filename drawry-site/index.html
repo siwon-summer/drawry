@@ -1581,6 +1581,7 @@ function handleMic() {
       : MediaRecorder.isTypeSupported('audio/mp4')
       ? 'audio/mp4'
       : '';
+    console.log('[STT] 사용 mimeType:', mimeType);
     mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
@@ -1595,24 +1596,31 @@ function handleMic() {
       const actualMime = mediaRecorder.mimeType || mimeType || 'audio/webm';
       const blob = new Blob(chunks, { type: actualMime });
 
-      // 채팅창에 로딩 표시
-      const chatCont = document.getElementById('chatContainer');
-      const loadingEl = document.createElement('div');
-      loadingEl.className = 'msg-row-user';
-      loadingEl.innerHTML = '<div class="user-content"><div class="bubble-user" style="opacity:0.5">🎤 변환 중...</div></div>';
-      chatCont.appendChild(loadingEl);
-      chatCont.scrollTop = chatCont.scrollHeight;
+      // 변환 중 표시: chatContainer 말풍선 X → input placeholder로 표시
+      const inp = document.getElementById('chatInput')
+        || document.querySelector('.chat-input textarea')
+        || document.querySelector('.chat-input input')
+        || document.querySelector('textarea')
+        || document.querySelector('input[type="text"]');
+      const prevPlaceholder = inp ? inp.placeholder : '';
+      if (inp) { inp.placeholder = '🎤 음성 인식 중...'; inp.disabled = true; }
+
+      const restoreInput = () => {
+        if (inp) { inp.placeholder = prevPlaceholder; inp.disabled = false; }
+      };
 
       if (!blob || blob.size === 0) {
-        console.error('[STT] 오디오 blob이 비어있음');
-        loadingEl.remove();
+        console.error('[STT] ❌ 녹음 blob이 비어있음. 마이크 권한 또는 녹음 시간 확인 필요');
+        restoreInput();
         return;
       }
-      console.log('[STT] 2. 오디오 blob 생성:', blob.size, blob.type);
+      console.log('[STT] 녹음 blob size:', blob.size, 'type:', blob.type);
 
       try {
-        console.log('[STT] 3. STT API 호출 시작');
-        const ext = actualMime.includes('mp4') ? 'mp4' : actualMime.includes('ogg') ? 'ogg' : 'webm';
+        console.log('[STT] API 호출 시작');
+        const ext = actualMime.includes('mp4') ? 'm4a'
+          : actualMime.includes('ogg') ? 'ogg'
+          : 'webm';
         const formData = new FormData();
         formData.append('file', blob, `recording.${ext}`);
         formData.append('model', 'kanana-speech-recognition');
@@ -1623,23 +1631,23 @@ function handleMic() {
         });
 
         console.log('[STT] 응답 status:', res.status);
-        const raw = await res.text();
-        console.log('[STT] 응답 raw:', raw);
+        const rawText = await res.text();
+        console.log('[STT] 응답 raw:', rawText);
+
+        restoreInput();
 
         if (!res.ok) {
-          console.error('[STT] API 오류:', res.status, raw);
-          loadingEl.querySelector('.bubble-user').textContent = '🎤 음성 인식 실패';
+          console.error('[STT] API 오류:', res.status, rawText);
           return;
         }
 
         let result;
-        try { result = JSON.parse(raw); }
+        try { result = JSON.parse(rawText); }
         catch(e) {
-          console.error('[STT] JSON 파싱 실패. raw:', raw);
-          loadingEl.querySelector('.bubble-user').textContent = '🎤 음성 인식 실패';
+          console.error('[STT] JSON 파싱 실패. raw:', rawText);
           return;
         }
-        console.log('[STT] 4. STT 응답 결과:', result);
+        console.log('[STT] 응답 결과:', result);
 
         const transcribedText = (
           result.text ||
@@ -1648,20 +1656,16 @@ function handleMic() {
           ''
         ).trim();
 
-        loadingEl.remove();
-
-        if (!transcribedText) {
-          console.error('[STT] 텍스트 추출 실패. 응답 구조 확인 필요:', result);
-          return;
+        if (inp && transcribedText) {
+          inp.value = transcribedText;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.focus();
+          console.log('[STT] ✅ input 필드 채움 완료:', transcribedText);
+        } else {
+          console.error('[STT] ❌ input 요소를 찾지 못함 또는 텍스트 없음');
         }
-
-        console.log('[STT] 5. 채팅창 입력값 세팅:', transcribedText);
-        const inp = document.getElementById('chatInput');
-        inp.value = transcribedText;
-        inp.dispatchEvent(new Event('input', { bubbles: true }));
-        inp.focus();
       } catch(e) {
-        loadingEl.querySelector('.bubble-user').textContent = '🎤 음성 인식 실패';
+        restoreInput();
         console.error('[STT] 전체 오류:', e);
       }
     };
