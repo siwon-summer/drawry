@@ -1,51 +1,47 @@
 const https = require('https');
 
-module.exports = async (req, res) => {
+// Kanana-o는 /v1/audio/transcriptions를 지원하지 않음.
+// 오디오 입력은 /v1/chat/completions에 input_audio content type으로 전달해야 함.
+module.exports = function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).end();
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const KANANA_API_KEY = (process.env.KANANA_API_KEY || '').trim();
+  if (!KANANA_API_KEY) return res.status(500).json({ error: 'API key not configured' });
 
-  const KANANA_API_KEY = process.env.KANANA_API_KEY;
-  if (!KANANA_API_KEY) {
-    return res.status(500).json({ error: 'API key not configured' });
-  }
+  const body = JSON.stringify(req.body);
 
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'kanana-o.a2s-endpoint.kr-central-2.kakaocloud.com',
-      path: '/v1/audio/transcriptions',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${KANANA_API_KEY}`,
-        'Content-Type': req.headers['content-type'],
-        'Content-Length': req.headers['content-length'],
-      }
-    };
+  const options = {
+    hostname: 'kanana-o.a2s-endpoint.kr-central-2.kakaocloud.com',
+    path: '/v1/chat/completions',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${KANANA_API_KEY}`,
+      'Content-Length': Buffer.byteLength(body)
+    }
+  };
 
-    const upstream = https.request(options, (upstreamRes) => {
-      let data = '';
-      upstreamRes.on('data', chunk => data += chunk);
-      upstreamRes.on('end', () => {
-        console.log('[STT] Kanana 응답 status:', upstreamRes.statusCode);
-        console.log('[STT] Kanana 응답 body:', data);
-        res.status(upstreamRes.statusCode).send(data);
-        resolve();
-      });
+  const request = https.request(options, (upstream) => {
+    let chunks = '';
+    upstream.on('data', chunk => chunks += chunk);
+    upstream.on('end', () => {
+      console.log('[STT] Kanana 응답 status:', upstream.statusCode);
+      console.log('[STT] Kanana 응답 body:', chunks);
+      try { res.status(upstream.statusCode).json(JSON.parse(chunks)); }
+      catch(e) { res.status(upstream.statusCode).send(chunks); }
     });
-
-    upstream.on('error', (err) => {
-      console.error('[STT] upstream 오류:', err);
-      res.status(500).json({ error: err.message });
-      resolve();
-    });
-
-    // req를 upstream으로 직접 파이프 (body parsing 없이)
-    req.pipe(upstream);
   });
+
+  request.on('error', (e) => {
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+    else res.end();
+  });
+
+  request.write(body);
+  request.end();
 };

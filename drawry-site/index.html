@@ -1617,17 +1617,24 @@ function handleMic() {
       console.log('[STT] 녹음 blob size:', blob.size, 'type:', blob.type);
 
       try {
-        console.log('[STT] API 호출 시작');
-        const ext = actualMime.includes('mp4') ? 'm4a'
-          : actualMime.includes('ogg') ? 'ogg'
-          : 'webm';
-        const formData = new FormData();
-        formData.append('file', blob, `recording.${ext}`);
-        formData.append('model', 'kanana-speech-recognition');
+        console.log('[STT] API 호출 시작 - blob → WAV base64 변환');
+        const wavBase64 = await blobToWavBase64(blob);
+        console.log('[STT] WAV base64 변환 완료, 길이:', wavBase64.length);
 
         const res = await fetch('/api/stt', {
           method: 'POST',
-          body: formData
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'kanana-o',
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'input_audio', input_audio: { data: wavBase64, format: 'wav' } },
+                { type: 'text', text: '음성인식 결과만 그대로 출력해줘.' }
+              ]
+            }],
+            modalities: ['text']
+          })
         });
 
         console.log('[STT] 응답 status:', res.status);
@@ -1650,9 +1657,9 @@ function handleMic() {
         console.log('[STT] 응답 결과:', result);
 
         const transcribedText = (
+          result.choices?.[0]?.message?.content ||
           result.text ||
           result.transcript ||
-          result?.choices?.[0]?.message?.content ||
           ''
         ).trim();
 
