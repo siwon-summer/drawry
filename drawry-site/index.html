@@ -1617,59 +1617,46 @@ function handleMic() {
       console.log('[STT] 녹음 blob size:', blob.size, 'type:', blob.type);
 
       try {
-        console.log('[STT] API 호출 시작 - blob → WAV base64 변환');
-        const wavBase64 = await blobToWavBase64(blob);
-        console.log('[STT] WAV base64 변환 완료, 길이:', wavBase64.length);
+        // blob → raw base64 (WAV 재인코딩 없이 녹음 원본 그대로)
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = '';
+        uint8Array.forEach(b => binary += String.fromCharCode(b));
+        const audioBase64 = btoa(binary);
+
+        const format = actualMime.includes('mp4') ? 'm4a'
+          : actualMime.includes('ogg') ? 'ogg'
+          : 'webm';
+
+        console.log('[STT] base64 길이:', audioBase64.length, 'format:', format);
 
         const res = await fetch('/api/stt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'kanana-o',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'input_audio', input_audio: { data: wavBase64, format: 'wav' } },
-                { type: 'text', text: '음성인식 결과만 그대로 출력해줘.' }
-              ]
-            }],
-            modalities: ['text']
-          })
+          body: JSON.stringify({ audioBase64, format })
         });
 
+        const raw = await res.text();
         console.log('[STT] 응답 status:', res.status);
-        const rawText = await res.text();
-        console.log('[STT] 응답 raw:', rawText);
+        console.log('[STT] 응답 raw:', raw);
 
         restoreInput();
 
         if (!res.ok) {
-          console.error('[STT] API 오류:', res.status, rawText);
+          console.error('[STT] API 오류:', res.status, raw);
           return;
         }
 
-        let result;
-        try { result = JSON.parse(rawText); }
-        catch(e) {
-          console.error('[STT] JSON 파싱 실패. raw:', rawText);
-          return;
-        }
-        console.log('[STT] 응답 결과:', result);
-
-        const transcribedText = (
-          result.choices?.[0]?.message?.content ||
-          result.text ||
-          result.transcript ||
-          ''
-        ).trim();
+        const result = JSON.parse(raw);
+        const transcribedText = result?.text || '';
 
         if (inp && transcribedText) {
           inp.value = transcribedText;
           inp.dispatchEvent(new Event('input', { bubbles: true }));
           inp.focus();
-          console.log('[STT] ✅ input 필드 채움 완료:', transcribedText);
+          console.log('[STT] ✅ input 채움:', transcribedText);
         } else {
-          console.error('[STT] ❌ input 요소를 찾지 못함 또는 텍스트 없음');
+          console.error('[STT] ❌ 텍스트 없음. 응답:', result);
         }
       } catch(e) {
         restoreInput();
