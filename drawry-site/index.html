@@ -1137,20 +1137,33 @@ x,y는 얼굴 영역의 좌상단 좌표, w,h는 너비/높이 비율입니다.
 
 // voiceStyle 동적 조합 (나이/성별 반영)
 function getVoiceStyle(characterType, gender, age) {
-  const baseStyle = CHAR_VOICE_MAP[characterType] || CHAR_VOICE_MAP['default'];
-  const ageTone = age < 10  ? '아주 높고 어린 아이 톤으로,'
-    : age < 20 ? '높고 청소년 톤으로,'
-    : age < 40 ? '자연스러운 성인 톤으로,'
-    : '낮고 중후한 중장년 톤으로,';
-  const genderTone = gender === 'female' ? '여성스럽게,'
-    : gender === 'male' ? '남성스럽게,'
-    : '';
-  return `${ageTone} ${genderTone} ${baseStyle}`;
+  if (age < 5) {
+    return gender === 'female'
+      ? '아주 높고 귀여운 여자아이 목소리로, 밝고 사랑스럽게'
+      : '아주 높고 귀여운 남자아이 목소리로, 밝고 활발하게';
+  } else if (age < 13) {
+    return gender === 'female'
+      ? '높고 밝은 여자아이 목소리로, 명랑하고 귀엽게'
+      : '높고 밝은 남자아이 목소리로, 활발하고 씩씩하게';
+  } else if (age < 20) {
+    return gender === 'female'
+      ? '맑고 청량한 10대 여성 목소리로, 밝고 경쾌하게'
+      : '변성기가 지난 10대 남성 목소리로, 활기차게';
+  } else if (age < 40) {
+    return gender === 'female'
+      ? '부드럽고 자연스러운 성인 여성 목소리로'
+      : '낮고 자연스러운 성인 남성 목소리로';
+  } else {
+    return gender === 'female'
+      ? '낮고 따뜻한 중년 여성 목소리로, 다정하게'
+      : '낮고 중후한 중년 남성 목소리로, 느리게';
+  }
 }
 
 // 다중 화자 프롬프트 생성 (나레이터 + 캐릭터)
 function buildMultiSpeakerPrompt(storyText, characterName, characterType, gender, age) {
   const voiceStyle = getVoiceStyle(characterType, gender, age);
+
   const lines = storyText.split('\n').filter(l => l.trim());
   const scriptLines = lines.map(line => {
     if (line.startsWith(characterName + ':') ||
@@ -1160,11 +1173,17 @@ function buildMultiSpeakerPrompt(storyText, characterName, characterType, gender
         line.includes('라고')) {
       const text = line.replace(characterName + ':', '').trim()
         .replace(/^"|"$/g, '').trim();
-      return `B: [${voiceStyle}] ${text}`;
+      return `B: ${text}`;
     }
-    return `A: [따뜻하고 차분한 성인 여성 나레이터] ${line}`;
+    return `A: ${line}`;
   }).join('\n');
-  return `이 대본을 배우가 연기하듯이 읽어줘. 대괄호는 발음하지 말고 연기해줘.\nA는 따뜻하고 차분한 성인 여성 나레이터, B는 ${voiceStyle}.\n\n${scriptLines}`;
+
+  return `이 대본을 두 사람이 나눠서 읽어줘.
+A는 따뜻하고 차분한 성인 여성 나레이터 목소리로 읽고,
+B는 ${voiceStyle} 읽어줘.
+대본의 A:, B: 표시는 읽지 말고 해당 목소리로만 읽어줘.
+
+${scriptLines}`;
 }
 
 // 동화 낭독 TTS (다중 화자, 수집만 담당)
