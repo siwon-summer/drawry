@@ -1158,11 +1158,13 @@ function buildMultiSpeakerPrompt(storyText, characterName, characterType, gender
         line.includes('말했다') ||
         line.includes('말했어') ||
         line.includes('라고')) {
-      return `speaker2: ${line.replace(characterName + ':', '').trim()}`;
+      const text = line.replace(characterName + ':', '').trim()
+        .replace(/^"|"$/g, '').trim();
+      return `B: [${voiceStyle}] ${text}`;
     }
-    return `speaker1: ${line}`;
+    return `A: [따뜻하고 차분한 성인 여성 나레이터] ${line}`;
   }).join('\n');
-  return `아래 동화를 읽어줘.\nspeaker1은 따뜻하고 차분한 성인 여성 나레이터 목소리로,\nspeaker2는 ${voiceStyle} 읽어줘.\n\n${scriptLines}`;
+  return `이 대본을 배우가 연기하듯이 읽어줘. 대괄호는 발음하지 말고 연기해줘.\nA는 따뜻하고 차분한 성인 여성 나레이터, B는 ${voiceStyle}.\n\n${scriptLines}`;
 }
 
 // 동화 낭독 TTS (다중 화자, 수집만 담당)
@@ -1205,11 +1207,9 @@ function characterTTS(text, pcmChunks, characterType, gender, age) {
 
 async function kananaCollect(text, pcmChunks, voiceStyle) {
   const cleanText = stripEmoji(text);
-  const sysPrompt = voiceStyle
-    ? `당신은 TTS 낭독 로봇입니다. 반드시 ${voiceStyle} 말해야 합니다. 입력된 텍스트를 한 글자도 바꾸지 않고 그대로만 음성으로 출력합니다. 절대로 새로운 문장을 생성하거나, 질문하거나, 추가 설명을 하지 않습니다. 오직 입력 텍스트만 낭독합니다.`
-    : '당신은 TTS 낭독 로봇입니다. 요청한 대로 목소리 스타일을 정확히 지켜서 낭독합니다. 절대로 새로운 문장을 생성하거나, 질문하거나, 추가 설명을 하지 않습니다.';
+  // voiceStyle이 있으면 단순 낭독 지시로 래핑, 없으면 prompt 전체를 그대로 사용
   const userText = voiceStyle
-    ? `다음 텍스트를 반드시 ${voiceStyle} 낭독해주세요. 목소리 스타일을 정확히 지켜주세요.\n\n${cleanText}`
+    ? `다음 문장을 ${voiceStyle} 읽어줘.\n${cleanText}`
     : cleanText;
 
   console.log('[kananaCollect] 실제 전송 프롬프트:', userText);
@@ -1220,7 +1220,6 @@ async function kananaCollect(text, pcmChunks, voiceStyle) {
     body: JSON.stringify({
       model: 'kanana-o',
       messages: [
-        { role: 'system', content: sysPrompt },
         { role: 'user', content: userText }
       ],
       modalities: ['text', 'audio'], stream: true
