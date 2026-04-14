@@ -1161,7 +1161,10 @@ function characterTTS(text, pcmChunks, characterType) {
 
 async function kananaCollect(text, pcmChunks, voiceStyle) {
   const cleanText = stripEmoji(text);
-  const sysPrompt = '당신은 TTS 낭독 로봇입니다. 입력된 텍스트를 한 글자도 바꾸지 않고 그대로만 음성으로 출력합니다. 절대로 새로운 문장을 생성하거나, 질문하거나, 추가 설명을 하지 않습니다. 오직 입력 텍스트만 낭독합니다.';
+  const sysPrompt = `당신은 TTS 낭독 로봇입니다. 반드시 ${voiceStyle} 말해야 합니다. 입력된 텍스트를 한 글자도 바꾸지 않고 그대로만 음성으로 출력합니다. 절대로 새로운 문장을 생성하거나, 질문하거나, 추가 설명을 하지 않습니다. 오직 입력 텍스트만 낭독합니다.`;
+  const userText = `다음 텍스트를 반드시 ${voiceStyle} 낭독해주세요. 목소리 스타일을 정확히 지켜주세요.\n\n${cleanText}`;
+
+  console.log('[kananaCollect] 실제 전송 프롬프트:', userText);
 
   const res = await fetch(`${KANANA_BASE_URL}`, {
     method: 'POST',
@@ -1170,7 +1173,7 @@ async function kananaCollect(text, pcmChunks, voiceStyle) {
       model: 'kanana-o',
       messages: [
         { role: 'system', content: sysPrompt },
-        { role: 'user', content: `[낭독 지시] 아래 텍스트를 ${voiceStyle} 그대로 읽어주세요. 내용 추가/변경/질문 금지.\n\n${cleanText}` }
+        { role: 'user', content: userText }
       ],
       modalities: ['text', 'audio'], stream: true
     })
